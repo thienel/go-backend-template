@@ -5,13 +5,13 @@ import (
 	"github.com/redis/go-redis/v9"
 	"github.com/thienel/tlog"
 
-	"github.com/thienel/go-backend-template/internal/domain/repository"
 	"github.com/thienel/go-backend-template/internal/interface/api/handler"
 	"github.com/thienel/go-backend-template/internal/interface/api/middleware"
+	"github.com/thienel/go-backend-template/internal/usecase/service"
 )
 
 // Setup configures all routes
-func Setup(engine *gin.Engine, userRepo repository.UserRepository, redisClient *redis.Client) {
+func Setup(engine *gin.Engine, userService service.UserService, redisClient *redis.Client) {
 	// Middleware
 	engine.Use(middleware.CORS())
 	engine.Use(middleware.Recovery())
@@ -24,7 +24,7 @@ func Setup(engine *gin.Engine, userRepo repository.UserRepository, redisClient *
 	})
 
 	// Handlers
-	userHandler := handler.NewUserHandler(userRepo)
+	userHandler := handler.NewUserHandler(userService)
 
 	// API v1
 	v1 := engine.Group("/api/v1")

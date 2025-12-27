@@ -18,6 +18,7 @@ import (
 	"github.com/thienel/go-backend-template/internal/infra/database"
 	"github.com/thienel/go-backend-template/internal/infra/persistence"
 	"github.com/thienel/go-backend-template/internal/interface/api/router"
+	"github.com/thienel/go-backend-template/internal/usecase/service/serviceimpl"
 	"github.com/thienel/go-backend-template/pkg/config"
 )
 
@@ -74,6 +75,9 @@ func main() {
 	db := database.GetDB()
 	userRepo := persistence.NewUserRepository(db)
 
+	// Initialize services
+	userService := serviceimpl.NewUserService(userRepo)
+
 	// Set Gin mode
 	if cfg.IsProduction() {
 		gin.SetMode(gin.ReleaseMode)
@@ -83,7 +87,7 @@ func main() {
 	engine := gin.New()
 
 	// Setup routes
-	router.Setup(engine, userRepo, redisClient)
+	router.Setup(engine, userService, redisClient)
 
 	// Create HTTP server
 	srv := &http.Server{

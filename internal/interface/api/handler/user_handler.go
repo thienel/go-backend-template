@@ -5,12 +5,11 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"golang.org/x/crypto/bcrypt"
 
 	"github.com/thienel/go-backend-template/internal/domain/entity"
-	"github.com/thienel/go-backend-template/internal/domain/repository"
 	"github.com/thienel/go-backend-template/internal/interface/api/dto"
 	"github.com/thienel/go-backend-template/internal/interface/api/middleware"
+	"github.com/thienel/go-backend-template/internal/usecase/service"
 	"github.com/thienel/go-backend-template/pkg/config"
 	"github.com/thienel/go-backend-template/pkg/cookie"
 	apperror "github.com/thienel/go-backend-template/pkg/error"
@@ -30,11 +29,11 @@ var userAllowedFields = map[string]bool{
 }
 
 type UserHandler struct {
-	userRepo repository.UserRepository
+	userService service.UserService
 }
 
-func NewUserHandler(userRepo repository.UserRepository) *UserHandler {
-	return &UserHandler{userRepo: userRepo}
+func NewUserHandler(userService service.UserService) *UserHandler {
+	return &UserHandler{userService: userService}
 }
 
 // Login handles user login
@@ -45,19 +44,9 @@ func (h *UserHandler) Login(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userRepo.FindByUsername(c.Request.Context(), req.Username)
+	user, err := h.userService.Login(c.Request.Context(), req.Username, req.Password)
 	if err != nil {
-		response.WriteErrorResponse(c, apperror.ErrInvalidCredentials)
-		return
-	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(req.Password)); err != nil {
-		response.WriteErrorResponse(c, apperror.ErrInvalidCredentials)
-		return
-	}
-
-	if user.Status != entity.UserStatusActive {
-		response.WriteErrorResponse(c, apperror.ErrForbidden.WithMessage("Tài khoản đã bị vô hiệu hóa"))
+		response.WriteErrorResponse(c, err)
 		return
 	}
 
@@ -95,7 +84,7 @@ func (h *UserHandler) Logout(c *gin.Context) {
 // GetMe returns current user info
 func (h *UserHandler) GetMe(c *gin.Context) {
 	userID := middleware.GetUserID(c)
-	user, err := h.userRepo.FindByID(c.Request.Context(), userID)
+	user, err := h.userService.GetByID(c.Request.Context(), userID)
 	if err != nil {
 		response.WriteErrorResponse(c, err)
 		return
@@ -115,7 +104,7 @@ func (h *UserHandler) List(c *gin.Context) {
 	offset, limit := query.GetPagination(params, 20)
 	opts := query.ParseQueryParams(params, userAllowedFields)
 
-	users, total, err := h.userRepo.ListWithQuery(c.Request.Context(), offset, limit, opts)
+	users, total, err := h.userService.List(c.Request.Context(), offset, limit, opts)
 	if err != nil {
 		response.WriteErrorResponse(c, err)
 		return
@@ -146,7 +135,7 @@ func (h *UserHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userRepo.FindByID(c.Request.Context(), uint(id))
+	user, err := h.userService.GetByID(c.Request.Context(), uint(id))
 	if err != nil {
 		response.WriteErrorResponse(c, err)
 		return
@@ -163,42 +152,13 @@ func (h *UserHandler) Create(c *gin.Context) {
 		return
 	}
 
-	// Check username exists
-	if _, err := h.userRepo.FindByUsernameIncludingDeleted(c.Request.Context(), req.Username); err == nil {
-		response.WriteErrorResponse(c, apperror.ErrUsernameExists)
-		return
-	}
-
-	// Check email exists
-	if _, err := h.userRepo.FindByEmailIncludingDeleted(c.Request.Context(), req.Email); err == nil {
-		response.WriteErrorResponse(c, apperror.ErrEmailExists)
-		return
-	}
-
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	if err != nil {
-		response.WriteErrorResponse(c, apperror.ErrInternalServerError)
-		return
-	}
-
-	role := entity.UserRoleUser
-	if req.Role != "" {
-		if !entity.IsValidUserRole(req.Role) {
-			response.WriteErrorResponse(c, apperror.ErrValidation.WithMessage("Role không hợp lệ"))
-			return
-		}
-		role = req.Role
-	}
-
-	user := &entity.User{
+	user, err := h.userService.Create(c.Request.Context(), service.CreateUserCommand{
 		Username: req.Username,
 		Email:    req.Email,
-		Password: string(hashedPassword),
-		Role:     role,
-		Status:   entity.UserStatusActive,
-	}
-
-	if err := h.userRepo.Create(c.Request.Context(), user); err != nil {
+		Password: req.Password,
+		Role:     req.Role,
+	})
+	if err != nil {
 		response.WriteErrorResponse(c, err)
 		return
 	}
@@ -220,44 +180,14 @@ func (h *UserHandler) Update(c *gin.Context) {
 		return
 	}
 
-	user, err := h.userRepo.FindByID(c.Request.Context(), uint(id))
+	user, err := h.userService.Update(c.Request.Context(), service.UpdateUserCommand{
+		ID:       uint(id),
+		Username: req.Username,
+		Email:    req.Email,
+		Role:     req.Role,
+		Status:   req.Status,
+	})
 	if err != nil {
-		response.WriteErrorResponse(c, err)
-		return
-	}
-
-	if req.Username != "" && req.Username != user.Username {
-		if _, err := h.userRepo.FindByUsernameIncludingDeleted(c.Request.Context(), req.Username); err == nil {
-			response.WriteErrorResponse(c, apperror.ErrUsernameExists)
-			return
-		}
-		user.Username = req.Username
-	}
-
-	if req.Email != "" && req.Email != user.Email {
-		if _, err := h.userRepo.FindByEmailIncludingDeleted(c.Request.Context(), req.Email); err == nil {
-			response.WriteErrorResponse(c, apperror.ErrEmailExists)
-			return
-		}
-		user.Email = req.Email
-	}
-
-	if req.Role != "" {
-		if !entity.IsValidUserRole(req.Role) {
-			response.WriteErrorResponse(c, apperror.ErrValidation.WithMessage("Role không hợp lệ"))
-			return
-		}
-		user.Role = req.Role
-	}
-	if req.Status != "" {
-		if !entity.IsValidUserStatus(req.Status) {
-			response.WriteErrorResponse(c, apperror.ErrValidation.WithMessage("Status không hợp lệ"))
-			return
-		}
-		user.Status = req.Status
-	}
-
-	if err := h.userRepo.Update(c.Request.Context(), user); err != nil {
 		response.WriteErrorResponse(c, err)
 		return
 	}
@@ -273,7 +203,7 @@ func (h *UserHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.userRepo.Delete(c.Request.Context(), uint(id)); err != nil {
+	if err := h.userService.Delete(c.Request.Context(), uint(id)); err != nil {
 		response.WriteErrorResponse(c, err)
 		return
 	}

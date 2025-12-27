@@ -71,34 +71,6 @@ func (r *userRepositoryImpl) Restore(ctx context.Context, id uint) error {
 	return nil
 }
 
-func (r *userRepositoryImpl) ListWithFilter(ctx context.Context, offset, limit int, filter repository.UserFilter) ([]entity.User, int64, error) {
-	var users []entity.User
-	var total int64
-
-	q := r.DB.WithContext(ctx).Model(&entity.User{})
-
-	if filter.Role != "" {
-		q = q.Where("role = ?", filter.Role)
-	}
-	if filter.Status != "" {
-		q = q.Where("status = ?", filter.Status)
-	}
-	if filter.Search != "" {
-		searchPattern := "%" + filter.Search + "%"
-		q = q.Where("username ILIKE ? OR email ILIKE ?", searchPattern, searchPattern)
-	}
-
-	if err := q.Count(&total).Error; err != nil {
-		return nil, 0, wrapListError(err, "người dùng")
-	}
-
-	if err := q.Order("created_at DESC").Offset(offset).Limit(limit).Find(&users).Error; err != nil {
-		return nil, 0, wrapListError(err, "người dùng")
-	}
-
-	return users, total, nil
-}
-
 func (r *userRepositoryImpl) ListWithQuery(ctx context.Context, offset, limit int, opts query.QueryOptions) ([]entity.User, int64, error) {
 	var users []entity.User
 	var total int64

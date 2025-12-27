@@ -11,7 +11,7 @@ import (
 )
 
 // Setup configures all routes
-func Setup(engine *gin.Engine, userService service.UserService, redisClient *redis.Client) {
+func Setup(engine *gin.Engine, authService service.AuthService, userService service.UserService, redisClient *redis.Client) {
 	// Middleware
 	engine.Use(middleware.CORS())
 	engine.Use(middleware.Recovery())
@@ -24,6 +24,7 @@ func Setup(engine *gin.Engine, userService service.UserService, redisClient *red
 	})
 
 	// Handlers
+	authHandler := handler.NewAuthHandler(authService, userService)
 	userHandler := handler.NewUserHandler(userService)
 
 	// API v1
@@ -32,29 +33,27 @@ func Setup(engine *gin.Engine, userService service.UserService, redisClient *red
 		// Auth routes (public)
 		auth := v1.Group("/auth")
 		{
-			auth.POST("/login", userHandler.Login)
-			auth.POST("/logout", userHandler.Logout)
+			auth.POST("/login", authHandler.Login)
+			auth.POST("/logout", authHandler.Logout)
 		}
 
-		// User routes
-		users := v1.Group("/users")
+		// Auth routes (protected)
+		authProtected := v1.Group("/auth")
+		authProtected.Use(middleware.RequireAuth())
 		{
-			// Protected routes
-			users.Use(middleware.RequireAuth())
-			{
-				users.GET("/me", userHandler.GetMe)
-			}
+			authProtected.GET("/me", authHandler.GetMe)
+		}
 
-			// Admin only routes
-			admin := users.Group("")
-			admin.Use(middleware.RequireAdmin())
-			{
-				admin.GET("", userHandler.List)
-				admin.GET("/:id", userHandler.GetByID)
-				admin.POST("", userHandler.Create)
-				admin.PUT("/:id", userHandler.Update)
-				admin.DELETE("/:id", userHandler.Delete)
-			}
+		// User management routes (admin only)
+		users := v1.Group("/users")
+		users.Use(middleware.RequireAuth())
+		users.Use(middleware.RequireAdmin())
+		{
+			users.GET("", userHandler.List)
+			users.GET("/:id", userHandler.GetByID)
+			users.POST("", userHandler.Create)
+			users.PUT("/:id", userHandler.Update)
+			users.DELETE("/:id", userHandler.Delete)
 		}
 	}
 }

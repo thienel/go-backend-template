@@ -23,27 +23,6 @@ func NewUserService(userRepo repository.UserRepository) service.UserService {
 	return &userServiceImpl{userRepo: userRepo}
 }
 
-func (s *userServiceImpl) Login(ctx context.Context, username, password string) (*entity.User, error) {
-	user, err := s.userRepo.FindByUsername(ctx, username)
-	if err != nil {
-		tlog.Debug("Login failed: user not found", zap.String("username", username))
-		return nil, apperror.ErrInvalidCredentials
-	}
-
-	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
-		tlog.Debug("Login failed: invalid password", zap.String("username", username))
-		return nil, apperror.ErrInvalidCredentials
-	}
-
-	if user.Status != entity.UserStatusActive {
-		tlog.Debug("Login failed: user inactive", zap.String("username", username))
-		return nil, apperror.ErrForbidden.WithMessage("Tài khoản đã bị vô hiệu hóa")
-	}
-
-	tlog.Info("User logged in", zap.Uint("user_id", user.ID), zap.String("username", user.Username))
-	return user, nil
-}
-
 func (s *userServiceImpl) Create(ctx context.Context, cmd service.CreateUserCommand) (*entity.User, error) {
 	// Validate role
 	role := entity.UserRoleUser

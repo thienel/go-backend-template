@@ -26,9 +26,6 @@ type UpdateUserCommand struct {
 
 // UserService defines the user service interface
 type UserService interface {
-	// Auth
-	Login(ctx context.Context, username, password string) (*entity.User, error)
-
 	// CRUD
 	Create(ctx context.Context, cmd CreateUserCommand) (*entity.User, error)
 	GetByID(ctx context.Context, id uint) (*entity.User, error)

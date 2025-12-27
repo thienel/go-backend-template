@@ -76,6 +76,7 @@ func main() {
 	userRepo := persistence.NewUserRepository(db)
 
 	// Initialize services
+	authService := serviceimpl.NewAuthService(userRepo)
 	userService := serviceimpl.NewUserService(userRepo)
 
 	// Set Gin mode
@@ -87,7 +88,7 @@ func main() {
 	engine := gin.New()
 
 	// Setup routes
-	router.Setup(engine, userService, redisClient)
+	router.Setup(engine, authService, userService, redisClient)
 
 	// Create HTTP server
 	srv := &http.Server{

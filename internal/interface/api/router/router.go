@@ -2,58 +2,75 @@ package router
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 	"github.com/thienel/tlog"
 
 	"github.com/thienel/go-backend-template/internal/interface/api/handler"
 	"github.com/thienel/go-backend-template/internal/interface/api/middleware"
-	"github.com/thienel/go-backend-template/internal/usecase/service"
 )
 
-// Setup configures all routes
-func Setup(engine *gin.Engine, authService service.AuthService, userService service.UserService, redisClient *redis.Client) {
-	// Middleware
-	engine.Use(middleware.CORS())
-	engine.Use(middleware.Recovery())
-	engine.Use(tlog.GinMiddleware(tlog.WithSkipPaths("/health")))
-	engine.Use(middleware.RateLimiter(redisClient))
+type routeRegister struct {
+	auth handler.AuthHandler
+	user handler.UserHandler
+	mw   *middleware.Middleware
+}
+
+// SetupRouter configures all routes following THD-Checkin-App pattern
+func SetupRouter(
+	authHandler handler.AuthHandler,
+	userHandler handler.UserHandler,
+	mw *middleware.Middleware,
+) *gin.Engine {
+
+	routes := routeRegister{
+		auth: authHandler,
+		user: userHandler,
+		mw:   mw,
+	}
+
+	router := gin.New()
+	router.Use(gin.Recovery(), mw.CORS(), tlog.GinMiddleware(tlog.WithSkipPaths("/health")))
 
 	// Health check
-	engine.GET("/health", func(c *gin.Context) {
+	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
-	// Handlers
-	authHandler := handler.NewAuthHandler(authService, userService)
-	userHandler := handler.NewUserHandler(userService)
-
-	// API v1
-	v1 := engine.Group("/api/v1")
+	// Public API
+	api := router.Group("/api")
 	{
-		// Auth routes (public)
-		auth := v1.Group("/auth")
-		{
-			auth.POST("/login", authHandler.Login)
-			auth.POST("/logout", authHandler.Logout)
-		}
+		routes.registerAuthRoutes(api)
+	}
 
-		// Auth routes (protected)
-		authProtected := v1.Group("/auth")
-		authProtected.Use(middleware.RequireAuth())
-		{
-			authProtected.GET("/me", authHandler.GetMe)
-		}
+	// Protected API
+	protected := api.Group("", mw.Auth())
+	{
+		routes.registerUserRoutes(protected)
+	}
 
-		// User management routes (admin only)
-		users := v1.Group("/users")
-		users.Use(middleware.RequireAuth())
-		users.Use(middleware.RequireAdmin())
-		{
-			users.GET("", userHandler.List)
-			users.GET("/:id", userHandler.GetByID)
-			users.POST("", userHandler.Create)
-			users.PUT("/:id", userHandler.Update)
-			users.DELETE("/:id", userHandler.Delete)
-		}
+	return router
+}
+
+func (r *routeRegister) registerAuthRoutes(rg *gin.RouterGroup) {
+	auth := rg.Group("/auth")
+	{
+		auth.POST("/login", r.auth.Login)
+		auth.POST("/logout", r.auth.Logout)
+	}
+
+	// Protected auth routes
+	authProtected := auth.Group("", r.mw.Auth())
+	{
+		authProtected.GET("/me", r.auth.GetMe)
+	}
+}
+
+func (r *routeRegister) registerUserRoutes(rg *gin.RouterGroup) {
+	users := rg.Group("/users", r.mw.RequireAdmin())
+	{
+		users.GET("", r.user.List)
+		users.GET("/:id", r.user.GetByID)
+		users.POST("", r.user.Create)
+		users.PUT("/:id", r.user.Update)
+		users.DELETE("/:id", r.user.Delete)
 	}
 }

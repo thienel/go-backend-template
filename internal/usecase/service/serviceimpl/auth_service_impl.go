@@ -9,49 +9,66 @@ import (
 
 	"github.com/thienel/go-backend-template/internal/domain/entity"
 	"github.com/thienel/go-backend-template/internal/domain/repository"
+	"github.com/thienel/go-backend-template/internal/interface/api/dto"
 	"github.com/thienel/go-backend-template/internal/usecase/service"
 	apperror "github.com/thienel/go-backend-template/pkg/error"
-	"github.com/thienel/go-backend-template/pkg/jwt"
 )
 
 type authServiceImpl struct {
-	userRepo repository.UserRepository
+	userRepo   repository.UserRepository
+	jwtService service.JWTService
 }
 
 // NewAuthService creates a new auth service
-func NewAuthService(userRepo repository.UserRepository) service.AuthService {
-	return &authServiceImpl{userRepo: userRepo}
+func NewAuthService(userRepo repository.UserRepository, jwtService service.JWTService) service.AuthService {
+	return &authServiceImpl{
+		userRepo:   userRepo,
+		jwtService: jwtService,
+	}
 }
 
-func (s *authServiceImpl) Login(ctx context.Context, username, password string) (*entity.User, string, string, error) {
+func (s *authServiceImpl) Login(ctx context.Context, username, password string) (*dto.LoginResponse, error) {
 	user, err := s.userRepo.FindByUsername(ctx, username)
 	if err != nil {
 		tlog.Debug("Login failed: user not found", zap.String("username", username))
-		return nil, "", "", apperror.ErrInvalidCredentials
+		return nil, apperror.ErrInvalidCredentials
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
 		tlog.Debug("Login failed: invalid password", zap.String("username", username))
-		return nil, "", "", apperror.ErrInvalidCredentials
+		return nil, apperror.ErrInvalidCredentials
 	}
 
 	if user.Status != entity.UserStatusActive {
 		tlog.Debug("Login failed: user inactive", zap.String("username", username))
-		return nil, "", "", apperror.ErrForbidden.WithMessage("Tài khoản đã bị vô hiệu hóa")
+		return nil, apperror.ErrForbidden.WithMessage("Tài khoản đã bị vô hiệu hóa")
 	}
 
-	accessToken, err := jwt.GenerateAccessToken(user.ID, user.Username, user.Role)
+	accessToken, err := s.jwtService.GenerateAccessToken(user.ID, user.Username, user.Role)
 	if err != nil {
-		return nil, "", "", apperror.ErrInternalServerError.WithMessage("Không thể tạo access token").WithError(err)
+		return nil, apperror.ErrInternalServerError.WithMessage("Không thể tạo access token").WithError(err)
 	}
 
-	refreshToken, err := jwt.GenerateRefreshToken(user.ID, user.Username, user.Role)
+	refreshToken, err := s.jwtService.GenerateRefreshToken(user.ID, user.Username, user.Role)
 	if err != nil {
-		return nil, "", "", apperror.ErrInternalServerError.WithMessage("Không thể tạo refresh token").WithError(err)
+		return nil, apperror.ErrInternalServerError.WithMessage("Không thể tạo refresh token").WithError(err)
 	}
 
 	tlog.Info("User logged in", zap.Uint("user_id", user.ID), zap.String("username", user.Username))
-	return user, accessToken, refreshToken, nil
+
+	return &dto.LoginResponse{
+		User: dto.UserResponse{
+			ID:        user.ID,
+			Username:  user.Username,
+			Email:     user.Email,
+			Role:      user.Role,
+			Status:    user.Status,
+			CreatedAt: user.CreatedAt,
+			UpdatedAt: user.UpdatedAt,
+		},
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}, nil
 }
 
 func (s *authServiceImpl) Logout(ctx context.Context) error {

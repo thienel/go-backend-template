@@ -6,17 +6,19 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/redis/go-redis/v9"
 	"github.com/thienel/tlog"
 	"go.uber.org/zap"
 
 	"github.com/thienel/go-backend-template/internal/domain/entity"
 	"github.com/thienel/go-backend-template/internal/infra/database"
 	"github.com/thienel/go-backend-template/internal/infra/persistence"
+	"github.com/thienel/go-backend-template/internal/interface/api/handler"
+	"github.com/thienel/go-backend-template/internal/interface/api/middleware"
 	"github.com/thienel/go-backend-template/internal/interface/api/router"
 	"github.com/thienel/go-backend-template/internal/usecase/service/serviceimpl"
 	"github.com/thienel/go-backend-template/pkg/config"
@@ -65,30 +67,34 @@ func main() {
 	}
 	tlog.Info("Database migration completed")
 
-	// Initialize Redis
-	redisClient := redis.NewClient(&redis.Options{
-		Addr: cfg.GetRedisAddr(),
-	})
-	defer redisClient.Close()
-
 	// Initialize repositories
 	db := database.GetDB()
 	userRepo := persistence.NewUserRepository(db)
 
 	// Initialize services
-	authService := serviceimpl.NewAuthService(userRepo)
+	jwtService := serviceimpl.NewJWTService(
+		cfg.JWT.Secret,
+		cfg.JWT.AccessExpiryMinutes,
+		cfg.JWT.RefreshExpiryHours,
+	)
+	authService := serviceimpl.NewAuthService(userRepo, jwtService)
 	userService := serviceimpl.NewUserService(userRepo)
+
+	// Initialize middleware
+	origins := strings.Join(cfg.CORSAllowedOrigins, ",")
+	mw := middleware.New(jwtService, origins)
+
+	// Initialize handlers
+	authHandler := handler.NewAuthHandler(authService, userService)
+	userHandler := handler.NewUserHandler(userService)
 
 	// Set Gin mode
 	if cfg.IsProduction() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	// Create Gin engine
-	engine := gin.New()
-
-	// Setup routes
-	router.Setup(engine, authService, userService, redisClient)
+	// Setup router
+	engine := router.SetupRouter(authHandler, userHandler, mw)
 
 	// Create HTTP server
 	srv := &http.Server{

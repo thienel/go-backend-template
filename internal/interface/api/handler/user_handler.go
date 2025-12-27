@@ -24,16 +24,25 @@ var userAllowedFields = map[string]bool{
 	"search":     true,
 }
 
-type UserHandler struct {
+// UserHandler interface
+type UserHandler interface {
+	List(c *gin.Context)
+	GetByID(c *gin.Context)
+	Create(c *gin.Context)
+	Update(c *gin.Context)
+	Delete(c *gin.Context)
+}
+
+type userHandlerImpl struct {
 	userService service.UserService
 }
 
-func NewUserHandler(userService service.UserService) *UserHandler {
-	return &UserHandler{userService: userService}
+// NewUserHandler creates a new user handler
+func NewUserHandler(userService service.UserService) UserHandler {
+	return &userHandlerImpl{userService: userService}
 }
 
-// List lists all users
-func (h *UserHandler) List(c *gin.Context) {
+func (h *userHandlerImpl) List(c *gin.Context) {
 	params := make(map[string]string)
 	for key, values := range c.Request.URL.Query() {
 		if len(values) > 0 {
@@ -67,8 +76,7 @@ func (h *UserHandler) List(c *gin.Context) {
 	}, "")
 }
 
-// GetByID returns user by ID
-func (h *UserHandler) GetByID(c *gin.Context) {
+func (h *userHandlerImpl) GetByID(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		response.WriteErrorResponse(c, apperror.ErrBadRequest.WithMessage("ID không hợp lệ"))
@@ -84,8 +92,7 @@ func (h *UserHandler) GetByID(c *gin.Context) {
 	response.OK(c, toUserResponse(user), "")
 }
 
-// Create creates a new user
-func (h *UserHandler) Create(c *gin.Context) {
+func (h *userHandlerImpl) Create(c *gin.Context) {
 	var req dto.CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.WriteErrorResponse(c, apperror.ErrValidation.WithMessage("Dữ liệu không hợp lệ"))
@@ -106,8 +113,7 @@ func (h *UserHandler) Create(c *gin.Context) {
 	response.Created(c, toUserResponse(user), "Tạo người dùng thành công")
 }
 
-// Update updates a user
-func (h *UserHandler) Update(c *gin.Context) {
+func (h *userHandlerImpl) Update(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		response.WriteErrorResponse(c, apperror.ErrBadRequest.WithMessage("ID không hợp lệ"))
@@ -135,8 +141,7 @@ func (h *UserHandler) Update(c *gin.Context) {
 	response.OK(c, toUserResponse(user), "Cập nhật thành công")
 }
 
-// Delete soft-deletes a user
-func (h *UserHandler) Delete(c *gin.Context) {
+func (h *userHandlerImpl) Delete(c *gin.Context) {
 	id, err := strconv.ParseUint(c.Param("id"), 10, 32)
 	if err != nil {
 		response.WriteErrorResponse(c, apperror.ErrBadRequest.WithMessage("ID không hợp lệ"))

@@ -2,30 +2,51 @@ package middleware
 
 import (
 	"net/http"
-	"time"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-
-	"github.com/thienel/go-backend-template/pkg/config"
 )
 
-// CORS returns a CORS middleware
-func CORS() gin.HandlerFunc {
-	cfg := config.GetConfig()
-	origins := []string{"*"}
-	if cfg != nil && len(cfg.CORSAllowedOrigins) > 0 {
-		origins = cfg.CORSAllowedOrigins
-	}
+// CORS returns CORS middleware
+func (m *Middleware) CORS() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		origin := c.GetHeader("Origin")
 
-	return cors.New(cors.Config{
-		AllowOrigins:     origins,
-		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Requested-With"},
-		ExposeHeaders:    []string{"Content-Length", "Content-Type"},
-		AllowCredentials: true,
-		MaxAge:           12 * time.Hour,
-	})
+		if m.allowAll {
+			if origin != "" {
+				c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+			} else {
+				c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
+				c.Writer.Header().Set("Access-Control-Allow-Credentials", "false")
+			}
+		} else if origin != "" {
+			for _, o := range m.allowedOrigins {
+				if o != "" && o == origin {
+					c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
+					break
+				}
+			}
+		}
+
+		if c.Writer.Header().Get("Access-Control-Allow-Origin") != "*" {
+			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
+
+		headers := c.Writer.Header()
+		headers.Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Requested-With, Accept, Origin")
+		headers.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+		headers.Set("Access-Control-Max-Age", "86400")
+
+		// Security headers
+		headers.Set("X-Content-Type-Options", "nosniff")
+		headers.Set("X-Frame-Options", "DENY")
+		headers.Set("X-XSS-Protection", "1; mode=block")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+		c.Next()
+	}
 }
 
 // Recovery returns a custom recovery middleware

@@ -66,3 +66,13 @@ help:
 	@echo "  tidy           - Tidy dependencies"
 	@echo "  clean          - Clean build artifacts"
 	@echo "  swagger        - Generate swagger docs"
+	@echo "  ent-gen        - Generate Ent code"
+	@echo "  ent-new        - Create a new Ent schema (usage: make ent-new NAME=User)"
+
+# Generate Ent code
+ent-gen:
+	@go generate ./internal/ent
+
+# Create a new Ent schema (usage: make ent-new NAME=User)
+ent-new:
+	@go run -mod=mod entgo.io/ent/cmd/ent new --target internal/ent/schema $(NAME)

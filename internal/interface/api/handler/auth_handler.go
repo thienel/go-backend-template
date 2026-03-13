@@ -75,8 +75,8 @@ func toAuthUserResponse(user *entity.User) dto.UserResponse {
 		CreatedAt: user.CreatedAt,
 		UpdatedAt: user.UpdatedAt,
 	}
-	if user.DeletedAt.Valid {
-		resp.DeletedAt = &user.DeletedAt.Time
+	if user.DeletedAt != nil {
+		resp.DeletedAt = user.DeletedAt
 	}
 	return resp
 }

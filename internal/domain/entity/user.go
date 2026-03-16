@@ -1,9 +1,5 @@
 package entity
 
-import (
-	"time"
-)
-
 // User roles
 const (
 	UserRoleUser        = "USER"
@@ -16,19 +12,6 @@ const (
 	UserStatusActive   = "ACTIVE"
 	UserStatusInactive = "INACTIVE"
 )
-
-// User represents the user entity
-type User struct {
-	ID        uint      `json:"id"`
-	Username  string    `json:"username"`
-	Email     string    `json:"email"`
-	Password  string    `json:"-"`
-	Role      string    `json:"role"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-	DeletedAt *time.Time `json:"deleted_at,omitempty"`
-}
 
 // IsValidUserRole checks if the role is valid
 func IsValidUserRole(role string) bool {

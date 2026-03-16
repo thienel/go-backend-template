@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/thienel/go-backend-template/internal/domain/entity"
+	"github.com/thienel/go-backend-template/internal/ent"
 	"github.com/thienel/go-backend-template/internal/interface/api/dto"
 	"github.com/thienel/go-backend-template/internal/usecase/service"
 	apperror "github.com/thienel/go-backend-template/pkg/error"
@@ -61,7 +61,7 @@ func (h *userHandlerImpl) List(c *gin.Context) {
 
 	items := make([]dto.UserResponse, len(users))
 	for i, u := range users {
-		items[i] = toUserResponse(&u)
+		items[i] = toUserResponse(u)
 	}
 
 	page := (offset / limit) + 1
@@ -156,7 +156,7 @@ func (h *userHandlerImpl) Delete(c *gin.Context) {
 	c.Status(http.StatusNoContent)
 }
 
-func toUserResponse(user *entity.User) dto.UserResponse {
+func toUserResponse(user *ent.User) dto.UserResponse {
 	resp := dto.UserResponse{
 		ID:        user.ID,
 		Username:  user.Username,

@@ -9,6 +9,7 @@ import (
 
 	"github.com/thienel/go-backend-template/internal/domain/entity"
 	"github.com/thienel/go-backend-template/internal/domain/repository"
+	"github.com/thienel/go-backend-template/internal/ent"
 	"github.com/thienel/go-backend-template/internal/usecase/service"
 	apperror "github.com/thienel/go-backend-template/pkg/error"
 	"github.com/thienel/go-backend-template/pkg/query"
@@ -23,7 +24,7 @@ func NewUserService(userRepo repository.UserRepository) service.UserService {
 	return &userServiceImpl{userRepo: userRepo}
 }
 
-func (s *userServiceImpl) Create(ctx context.Context, cmd service.CreateUserCommand) (*entity.User, error) {
+func (s *userServiceImpl) Create(ctx context.Context, cmd service.CreateUserCommand) (*ent.User, error) {
 	// Validate role
 	role := entity.UserRoleUser
 	if cmd.Role != "" {
@@ -51,7 +52,7 @@ func (s *userServiceImpl) Create(ctx context.Context, cmd service.CreateUserComm
 		return nil, apperror.ErrInternalServerError.WithMessage("Không thể mã hóa mật khẩu").WithError(err)
 	}
 
-	user := &entity.User{
+	user := &ent.User{
 		Username: cmd.Username,
 		Email:    cmd.Email,
 		Password: string(hashedPassword),
@@ -67,7 +68,7 @@ func (s *userServiceImpl) Create(ctx context.Context, cmd service.CreateUserComm
 	return user, nil
 }
 
-func (s *userServiceImpl) GetByID(ctx context.Context, id uint) (*entity.User, error) {
+func (s *userServiceImpl) GetByID(ctx context.Context, id uint) (*ent.User, error) {
 	user, err := s.userRepo.FindByID(ctx, id)
 	if err != nil {
 		tlog.Debug("Get user failed: not found", zap.Uint("user_id", id))
@@ -76,7 +77,7 @@ func (s *userServiceImpl) GetByID(ctx context.Context, id uint) (*entity.User, e
 	return user, nil
 }
 
-func (s *userServiceImpl) Update(ctx context.Context, cmd service.UpdateUserCommand) (*entity.User, error) {
+func (s *userServiceImpl) Update(ctx context.Context, cmd service.UpdateUserCommand) (*ent.User, error) {
 	user, err := s.userRepo.FindByID(ctx, cmd.ID)
 	if err != nil {
 		tlog.Debug("Update user failed: not found", zap.Uint("user_id", cmd.ID))
@@ -140,6 +141,6 @@ func (s *userServiceImpl) Delete(ctx context.Context, id uint) error {
 	return nil
 }
 
-func (s *userServiceImpl) List(ctx context.Context, offset, limit int, opts query.QueryOptions) ([]entity.User, int64, error) {
+func (s *userServiceImpl) List(ctx context.Context, offset, limit int, opts query.QueryOptions) ([]*ent.User, int64, error) {
 	return s.userRepo.ListWithQuery(ctx, offset, limit, opts)
 }

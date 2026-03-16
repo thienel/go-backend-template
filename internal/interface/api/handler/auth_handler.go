@@ -3,7 +3,7 @@ package handler
 import (
 	"github.com/gin-gonic/gin"
 
-	"github.com/thienel/go-backend-template/internal/domain/entity"
+	"github.com/thienel/go-backend-template/internal/ent"
 	"github.com/thienel/go-backend-template/internal/interface/api/dto"
 	"github.com/thienel/go-backend-template/internal/interface/api/middleware"
 	"github.com/thienel/go-backend-template/internal/usecase/service"
@@ -65,7 +65,7 @@ func (h *authHandlerImpl) GetMe(c *gin.Context) {
 	response.OK(c, toAuthUserResponse(user), "")
 }
 
-func toAuthUserResponse(user *entity.User) dto.UserResponse {
+func toAuthUserResponse(user *ent.User) dto.UserResponse {
 	resp := dto.UserResponse{
 		ID:        user.ID,
 		Username:  user.Username,

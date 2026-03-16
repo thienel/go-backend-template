@@ -3,7 +3,6 @@ package persistence
 import (
 	"context"
 
-	"github.com/thienel/go-backend-template/internal/domain/entity"
 	"github.com/thienel/go-backend-template/internal/domain/repository"
 	"github.com/thienel/go-backend-template/internal/ent"
 	"github.com/thienel/go-backend-template/internal/ent/user"
@@ -32,7 +31,7 @@ func NewUserRepository(client *ent.Client) repository.UserRepository {
 
 // --- BaseRepository Methods ---
 
-func (r *userRepositoryImpl) Create(ctx context.Context, e *entity.User) error {
+func (r *userRepositoryImpl) Create(ctx context.Context, e *ent.User) error {
 	u, err := r.client.User.Create().
 		SetUsername(e.Username).
 		SetEmail(e.Email).
@@ -52,7 +51,7 @@ func (r *userRepositoryImpl) Create(ctx context.Context, e *entity.User) error {
 	return nil
 }
 
-func (r *userRepositoryImpl) FindByID(ctx context.Context, id uint) (*entity.User, error) {
+func (r *userRepositoryImpl) FindByID(ctx context.Context, id uint) (*ent.User, error) {
 	u, err := r.client.User.Query().Where(user.ID(id), user.DeletedAtIsNil()).Only(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
@@ -60,10 +59,10 @@ func (r *userRepositoryImpl) FindByID(ctx context.Context, id uint) (*entity.Use
 		}
 		return nil, wrapFindError(err, "người dùng")
 	}
-	return toDomainUser(u), nil
+	return u, nil
 }
 
-func (r *userRepositoryImpl) Update(ctx context.Context, e *entity.User) error {
+func (r *userRepositoryImpl) Update(ctx context.Context, e *ent.User) error {
 	u, err := r.client.User.UpdateOneID(e.ID).
 		SetUsername(e.Username).
 		SetEmail(e.Email).
@@ -86,8 +85,16 @@ func (r *userRepositoryImpl) Delete(ctx context.Context, id uint) error {
 	return nil
 }
 
-func (r *userRepositoryImpl) List(ctx context.Context, offset, limit int, opts query.QueryOptions) ([]entity.User, int64, error) {
-	return r.ListWithQuery(ctx, offset, limit, opts)
+func (r *userRepositoryImpl) List(ctx context.Context, offset, limit int, opts query.QueryOptions) ([]ent.User, int64, error) {
+	entUsers, total, err := r.ListWithQuery(ctx, offset, limit, opts)
+	if err != nil {
+		return nil, 0, err
+	}
+	res := make([]ent.User, len(entUsers))
+	for i, u := range entUsers {
+		res[i] = *u
+	}
+	return res, total, nil
 }
 
 func (r *userRepositoryImpl) Exists(ctx context.Context, id uint) (bool, error) {
@@ -100,36 +107,36 @@ func (r *userRepositoryImpl) Exists(ctx context.Context, id uint) (bool, error) 
 
 // --- UserRepository Methods ---
 
-func (r *userRepositoryImpl) FindByUsername(ctx context.Context, username string) (*entity.User, error) {
+func (r *userRepositoryImpl) FindByUsername(ctx context.Context, username string) (*ent.User, error) {
 	u, err := r.client.User.Query().Where(user.Username(username), user.DeletedAtIsNil()).Only(ctx)
 	if err != nil {
 		return nil, wrapFindError(err, "người dùng")
 	}
-	return toDomainUser(u), nil
+	return u, nil
 }
 
-func (r *userRepositoryImpl) FindByEmail(ctx context.Context, email string) (*entity.User, error) {
+func (r *userRepositoryImpl) FindByEmail(ctx context.Context, email string) (*ent.User, error) {
 	u, err := r.client.User.Query().Where(user.Email(email), user.DeletedAtIsNil()).Only(ctx)
 	if err != nil {
 		return nil, wrapFindError(err, "người dùng")
 	}
-	return toDomainUser(u), nil
+	return u, nil
 }
 
-func (r *userRepositoryImpl) FindByUsernameIncludingDeleted(ctx context.Context, username string) (*entity.User, error) {
+func (r *userRepositoryImpl) FindByUsernameIncludingDeleted(ctx context.Context, username string) (*ent.User, error) {
 	u, err := r.client.User.Query().Where(user.Username(username)).Only(ctx)
 	if err != nil {
 		return nil, wrapFindError(err, "người dùng")
 	}
-	return toDomainUser(u), nil
+	return u, nil
 }
 
-func (r *userRepositoryImpl) FindByEmailIncludingDeleted(ctx context.Context, email string) (*entity.User, error) {
+func (r *userRepositoryImpl) FindByEmailIncludingDeleted(ctx context.Context, email string) (*ent.User, error) {
 	u, err := r.client.User.Query().Where(user.Email(email)).Only(ctx)
 	if err != nil {
 		return nil, wrapFindError(err, "người dùng")
 	}
-	return toDomainUser(u), nil
+	return u, nil
 }
 
 func (r *userRepositoryImpl) Restore(ctx context.Context, id uint) error {
@@ -141,7 +148,7 @@ func (r *userRepositoryImpl) Restore(ctx context.Context, id uint) error {
 	return nil
 }
 
-func (r *userRepositoryImpl) ListWithQuery(ctx context.Context, offset, limit int, opts query.QueryOptions) ([]entity.User, int64, error) {
+func (r *userRepositoryImpl) ListWithQuery(ctx context.Context, offset, limit int, opts query.QueryOptions) ([]*ent.User, int64, error) {
 	q := r.client.User.Query().Where(user.DeletedAtIsNil())
 
 	if searchFilter, ok := opts.Filters["search"]; ok {
@@ -182,30 +189,5 @@ func (r *userRepositoryImpl) ListWithQuery(ctx context.Context, offset, limit in
 		return nil, 0, wrapListError(err, "người dùng")
 	}
 
-	users := make([]entity.User, len(entUsers))
-	for i, u := range entUsers {
-		users[i] = *toDomainUser(u)
-	}
-
-	return users, int64(total), nil
-}
-
-func toDomainUser(u *ent.User) *entity.User {
-	if u == nil {
-		return nil
-	}
-	result := &entity.User{
-		ID:        u.ID,
-		Username:  u.Username,
-		Email:     u.Email,
-		Password:  u.Password,
-		Role:      u.Role,
-		Status:    u.Status,
-		CreatedAt: u.CreatedAt,
-		UpdatedAt: u.UpdatedAt,
-	}
-	if u.DeletedAt != nil {
-		result.DeletedAt = u.DeletedAt
-	}
-	return result
+	return entUsers, int64(total), nil
 }

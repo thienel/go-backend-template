@@ -87,8 +87,8 @@ func getRequestContext(c *gin.Context) []zap.Field {
 		fields = append(fields, zap.String("request_id", requestID))
 	}
 
-	if userID, exists := c.Get("user_id"); exists {
-		fields = append(fields, zap.Any("user_id", userID))
+	if userClaims, exists := c.Get("user"); exists {
+		fields = append(fields, zap.Any("user", userClaims))
 	}
 
 	return fields

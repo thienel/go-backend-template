@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"github.com/thienel/go-backend-template/internal/domain/entity"
+	"github.com/thienel/go-backend-template/internal/ent"
 	"github.com/thienel/go-backend-template/pkg/query"
 )
 
@@ -27,11 +27,11 @@ type UpdateUserCommand struct {
 // UserService defines the user service interface
 type UserService interface {
 	// CRUD
-	Create(ctx context.Context, cmd CreateUserCommand) (*entity.User, error)
-	GetByID(ctx context.Context, id uint) (*entity.User, error)
-	Update(ctx context.Context, cmd UpdateUserCommand) (*entity.User, error)
+	Create(ctx context.Context, cmd CreateUserCommand) (*ent.User, error)
+	GetByID(ctx context.Context, id uint) (*ent.User, error)
+	Update(ctx context.Context, cmd UpdateUserCommand) (*ent.User, error)
 	Delete(ctx context.Context, id uint) error
 
 	// Query
-	List(ctx context.Context, offset, limit int, opts query.QueryOptions) ([]entity.User, int64, error)
+	List(ctx context.Context, offset, limit int, opts query.QueryOptions) ([]*ent.User, int64, error)
 }

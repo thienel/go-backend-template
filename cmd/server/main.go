@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
@@ -14,13 +13,7 @@ import (
 	"github.com/thienel/tlog"
 	"go.uber.org/zap"
 
-	"github.com/thienel/go-backend-template/internal/domain/entity"
 	"github.com/thienel/go-backend-template/internal/infra/database"
-	"github.com/thienel/go-backend-template/internal/infra/persistence"
-	"github.com/thienel/go-backend-template/internal/interface/api/handler"
-	"github.com/thienel/go-backend-template/internal/interface/api/middleware"
-	"github.com/thienel/go-backend-template/internal/interface/api/router"
-	"github.com/thienel/go-backend-template/internal/usecase/service/serviceimpl"
 	"github.com/thienel/go-backend-template/pkg/config"
 )
 
@@ -61,40 +54,15 @@ func main() {
 	}
 	defer database.Close()
 
-	// Auto migrate
-	if err := database.AutoMigrate(&entity.User{}); err != nil {
-		tlog.Fatal("Failed to run auto migration", zap.Error(err))
-	}
-	tlog.Info("Database migration completed")
-
-	// Initialize repositories
-	db := database.GetDB()
-	userRepo := persistence.NewUserRepository(db)
-
-	// Initialize services
-	jwtService := serviceimpl.NewJWTService(
-		cfg.JWT.Secret,
-		cfg.JWT.AccessExpiryMinutes,
-		cfg.JWT.RefreshExpiryHours,
-	)
-	authService := serviceimpl.NewAuthService(userRepo, jwtService)
-	userService := serviceimpl.NewUserService(userRepo)
-
-	// Initialize middleware
-	origins := strings.Join(cfg.CORSAllowedOrigins, ",")
-	mw := middleware.New(jwtService, origins)
-
-	// Initialize handlers
-	authHandler := handler.NewAuthHandler(authService, userService)
-	userHandler := handler.NewUserHandler(userService)
+	tlog.Info("Database connection established")
 
 	// Set Gin mode
 	if cfg.IsProduction() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	// Setup router
-	engine := router.SetupRouter(authHandler, userHandler, mw)
+	// Setup dependencies
+	engine := setupDependencies(cfg)
 
 	// Create HTTP server
 	srv := &http.Server{

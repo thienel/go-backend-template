@@ -4,7 +4,10 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/thienel/tlog"
+	"go.uber.org/zap"
 
+	"github.com/thienel/go-backend-template/internal/infra/authorization"
 	"github.com/thienel/go-backend-template/internal/infra/database"
 	"github.com/thienel/go-backend-template/internal/infra/persistence"
 	"github.com/thienel/go-backend-template/internal/interface/api/handler"
@@ -20,6 +23,12 @@ func setupDependencies(cfg *config.Config) *gin.Engine {
 	client := database.GetClient()
 	userRepo := persistence.NewUserRepository(client)
 
+	// Casbin Enforcer
+	enforcer, err := authorization.NewEnforcer(cfg.Casbin.ModelPath, database.GetDB())
+	if err != nil {
+		tlog.Fatal("Failed to initialize Casbin enforcer", zap.Error(err))
+	}
+
 	// Services
 	jwtService := serviceimpl.NewJWTService(
 		cfg.JWT.Secret,
@@ -28,15 +37,17 @@ func setupDependencies(cfg *config.Config) *gin.Engine {
 	)
 	authService := serviceimpl.NewAuthService(userRepo, jwtService)
 	userService := serviceimpl.NewUserService(userRepo)
+	authzService := serviceimpl.NewAuthorizationService(enforcer)
 
 	// Middleware
 	origins := strings.Join(cfg.CORSAllowedOrigins, ",")
-	mw := middleware.New(jwtService, origins)
+	mw := middleware.New(jwtService, authzService, origins)
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authService, userService)
 	userHandler := handler.NewUserHandler(userService)
+	policyHandler := handler.NewPolicyHandler(authzService)
 
 	// Build router
-	return router.SetupRouter(authHandler, userHandler, mw)
+	return router.SetupRouter(authHandler, userHandler, policyHandler, mw)
 }

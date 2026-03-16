@@ -19,6 +19,7 @@ import (
 
 var (
 	client *ent.Client
+	sqlDB  *sql.DB
 	once   sync.Once
 )
 
@@ -39,6 +40,7 @@ func Init(cfg *config.DatabaseConfig) error {
 		)
 
 		db, err := sql.Open("postgres", dsn)
+		sqlDB = db
 		if err != nil {
 			initErr = fmt.Errorf("failed opening connection to postgres: %w", err)
 			return
@@ -69,6 +71,11 @@ func Init(cfg *config.DatabaseConfig) error {
 // GetClient returns the ent client instance
 func GetClient() *ent.Client {
 	return client
+}
+
+// GetDB returns the underlying *sql.DB instance
+func GetDB() *sql.DB {
+	return sqlDB
 }
 
 // Close closes the database connection

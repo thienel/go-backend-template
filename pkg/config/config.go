@@ -61,6 +61,11 @@ type RateLimitConfig struct {
 	RequestsPerMinute int  `env:"RATE_LIMIT_REQUESTS_PER_MIN" env-default:"60"`
 }
 
+// CasbinConfig holds Casbin authorization configuration
+type CasbinConfig struct {
+	ModelPath string `env:"CASBIN_MODEL_PATH" env-default:"configs/casbin_model.conf"`
+}
+
 // Config holds all application configuration
 type Config struct {
 	Server    ServerConfig
@@ -69,6 +74,7 @@ type Config struct {
 	Log       LogConfig
 	Cookie    CookieConfig
 	RateLimit RateLimitConfig
+	Casbin    CasbinConfig
 
 	RedisURL           string   `env:"REDIS_URL" env-default:"redis://localhost:6379"`
 	CORSAllowedOrigins []string `env:"CORS_ALLOWED_ORIGINS" env-default:"http://localhost:3000"`

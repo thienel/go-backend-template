@@ -9,22 +9,25 @@ import (
 )
 
 type routeRegister struct {
-	auth handler.AuthHandler
-	user handler.UserHandler
-	mw   *middleware.Middleware
+	auth   handler.AuthHandler
+	user   handler.UserHandler
+	policy handler.PolicyHandler
+	mw     *middleware.Middleware
 }
 
 // SetupRouter configures all routes following THD-Checkin-App pattern
 func SetupRouter(
 	authHandler handler.AuthHandler,
 	userHandler handler.UserHandler,
+	policyHandler handler.PolicyHandler,
 	mw *middleware.Middleware,
 ) *gin.Engine {
 
 	routes := routeRegister{
-		auth: authHandler,
-		user: userHandler,
-		mw:   mw,
+		auth:   authHandler,
+		user:   userHandler,
+		policy: policyHandler,
+		mw:     mw,
 	}
 
 	router := gin.New()
@@ -41,10 +44,11 @@ func SetupRouter(
 		routes.registerAuthRoutes(api)
 	}
 
-	// Protected API
-	protected := api.Group("", mw.Auth())
+	// Protected API: Authentication (JWT) + Authorization (Casbin)
+	protected := api.Group("", mw.Auth(), mw.Authorize())
 	{
 		routes.registerUserRoutes(protected)
+		routes.registerPolicyRoutes(protected)
 	}
 
 	return router
@@ -65,12 +69,29 @@ func (r *routeRegister) registerAuthRoutes(rg *gin.RouterGroup) {
 }
 
 func (r *routeRegister) registerUserRoutes(rg *gin.RouterGroup) {
-	users := rg.Group("/users", r.mw.RequireAdmin())
+	users := rg.Group("/users")
 	{
 		users.GET("", r.user.List)
 		users.GET("/:id", r.user.GetByID)
 		users.POST("", r.user.Create)
 		users.PUT("/:id", r.user.Update)
 		users.DELETE("/:id", r.user.Delete)
+	}
+}
+
+func (r *routeRegister) registerPolicyRoutes(rg *gin.RouterGroup) {
+	policies := rg.Group("/policies")
+	{
+		policies.GET("", r.policy.ListPolicies)
+		policies.POST("", r.policy.AddPolicy)
+		policies.DELETE("", r.policy.RemovePolicy)
+		policies.GET("/role/:role", r.policy.GetPoliciesForRole)
+	}
+
+	roles := rg.Group("/roles")
+	{
+		roles.GET("", r.policy.ListRoles)
+		roles.POST("", r.policy.AddRole)
+		roles.DELETE("", r.policy.RemoveRole)
 	}
 }

@@ -5,7 +5,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"github.com/thienel/go-backend-template/internal/domain/entity"
 	"github.com/thienel/go-backend-template/internal/domain/valueobject"
 	apperror "github.com/thienel/go-backend-template/pkg/error"
 	"github.com/thienel/go-backend-template/pkg/response"
@@ -35,36 +34,6 @@ func (m *Middleware) Auth() gin.HandlerFunc {
 		c.Set(string(UserContextKey), claims)
 		c.Next()
 	}
-}
-
-// AllowRoles returns middleware that checks user role
-func (m *Middleware) AllowRoles(requiredRoles ...string) gin.HandlerFunc {
-	roleSet := make(map[string]struct{}, len(requiredRoles))
-	for _, r := range requiredRoles {
-		roleSet[r] = struct{}{}
-	}
-
-	return func(c *gin.Context) {
-		claims := GetUserClaims(c)
-		if claims == nil {
-			response.WriteErrorResponse(c, apperror.ErrUnauthorized)
-			c.Abort()
-			return
-		}
-
-		if _, ok := roleSet[claims.Role]; !ok {
-			response.WriteErrorResponse(c, apperror.ErrForbidden)
-			c.Abort()
-			return
-		}
-
-		c.Next()
-	}
-}
-
-// RequireAdmin is a convenience method for admin-only routes
-func (m *Middleware) RequireAdmin() gin.HandlerFunc {
-	return m.AllowRoles(entity.UserRoleAdmin, entity.UserRoleSystemAdmin)
 }
 
 func getTokenFromHeader(authHeader string) string {
